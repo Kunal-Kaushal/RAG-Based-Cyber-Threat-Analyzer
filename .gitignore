@@ -5,3 +5,7 @@ generate_logs.py
 __pycache__/
 venv/
 .DS_Store
+cyber_data.txt
+attack_memory.db
+.gitattributes
+logs.txt
