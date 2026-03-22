@@ -1,0 +1,5 @@
+main.py
+embeddings.npy
+generate_logs.py
+.env
+__pycache__/
