@@ -3,6 +3,7 @@ embeddings.npy
 generate_logs.py
 .env
 __pycache__/
+*.pyc
 venv/
 .DS_Store
 cyber_data.txt
