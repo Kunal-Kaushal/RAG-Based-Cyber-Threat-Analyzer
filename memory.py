@@ -67,7 +67,7 @@ def get_repeat_offenders():
     return rows
 
 
-def check_kill_chain(ip: str, time_window_minutes: int = 10):
+def check_kill_chain(ip: str, time_window_minutes: int = 60):
     """
     Check if this IP performed Port Scan followed by Brute Force
     within the time window. If yes, return kill chain details.
@@ -89,18 +89,60 @@ def check_kill_chain(ip: str, time_window_minutes: int = 10):
     attack_types = [row[0] for row in rows]
     timestamps   = [datetime.fromisoformat(row[1]) for row in rows]
 
-    has_port_scan   = "Port Scan" in attack_types
-    has_brute_force = "Brute Force" in attack_types
+    ps_times = [timestamps[i] for i, a in enumerate(attack_types) if a == "Port Scan"]
+    bf_times = [timestamps[i] for i, a in enumerate(attack_types) if a == "Brute Force"]
 
-    if has_port_scan and has_brute_force:
-        ps_time = next(timestamps[i] for i, a in enumerate(attack_types) if a == "Port Scan")
-        bf_time = next(timestamps[i] for i, a in enumerate(attack_types) if a == "Brute Force")
-        diff = abs((bf_time - ps_time).total_seconds() / 60)
-        if diff <= time_window_minutes:
-            return {
-                "ip"      : ip,
-                "pattern" : "Port Scan → Brute Force",
-                "severity": "Critical",
-                "minutes" : round(diff, 1)
-            }
+    for ps in ps_times:
+        for bf in bf_times:
+            if bf > ps:
+                diff = (bf - ps).total_seconds() / 60
+                if diff <= time_window_minutes:
+                    return {
+                        "ip"      : ip,
+                        "pattern" : "Port Scan → Brute Force",
+                        "severity": "Critical",
+                        "minutes" : round(diff, 1)
+                    }
     return None
+
+
+
+def init_blocklist():
+    conn = sqlite3.connect("attack_memory.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+            CREATE TABLE IF NOT EXISTS blocked_ips(
+                ip TEXT PRIMARY KEY,
+                reason TEXT,
+                severity TEXT,
+                blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )    
+        """)
+    conn.commit()
+    conn.close()
+
+
+def block_ip(ip: str, reason : str, severity:str):
+    conn = sqlite3.connect("attack_memory.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR IGNORE INTO blocked_ips(ip, reason, severity)
+        VALUES (?,?,?)
+    
+    """, (ip, reason,severity))
+    conn.commit()
+    conn.close()
+
+
+def is_blocked(ip):
+    conn = sqlite3.connect("attack_memory.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM blocked_ips WHERE ip = ?", (ip,))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+
+
+ 
